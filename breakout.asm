@@ -37,6 +37,12 @@ WALL_COLOR: .word 0x808080 # grey
 	.text
 	.globl main
 
+.macro sleep (%time) # in milli-seconds
+	li	$v0, 32
+	li	$a0, %time
+	syscall
+.end_macro
+
 	# Run the Brick Breaker game.
 main:
     # Initialize the game
@@ -76,10 +82,38 @@ draw_background:
 			b for_draw_right_wall
 	done_draw_wall:
 		nop
+	sleep (1000)
 
 game_loop:
 	# 1a. Check if key has been pressed
+	keyboard_check:
+		lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
+    	lw $t8, 0($t0)                  # Load first word from keyboard
+		beq $t8, 1, keyboard_input      # If first word 1, key is pressed
+    	b main
+
     # 1b. Check which key has been pressed
+    keyboard_input:
+    	lw $a0, 4($t0)                  # Load second word from keyboard
+		beq $a0, 0x20, respond_to_blank # start the game
+    	beq $a0, 0x71, respond_to_q     # Check if the key q was pressed
+		beq $a0, 0x61, respond_to_a		# move paddle to the left
+		beq $a0, 0x64, respond_to_d		# move paddle to the right
+
+		li $v0, 1                       # ask system to print $a0
+    	syscall
+    	b main
+		
+    	# below are different branch responses for different key inputs
+    	respond_to_q:
+    		j finish_program
+		respond_to_blank:
+			nop
+		respond_to_a:
+			nop
+		respond_to_d:
+			nop
+
     # 2a. Check for collisions
 	# 2b. Update locations (paddle, ball)
 	# 3. Draw the screen
@@ -87,3 +121,6 @@ game_loop:
 
     #5. Go back to 1
     b game_loop
+    
+finish_program:
+	nop
