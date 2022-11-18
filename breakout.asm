@@ -24,16 +24,24 @@ ADDR_KBRD:
    
 ROW_WALL: .word 64
 COLUMN_WALL: .word 30
+ROW_BRICKS: .word 16 # brick_size = 4, each row has 16 bricks
+NUM_ROWS: 3
 
 WALL_COLOR: .word 0x808080 # grey
 BALL_COLOR: .word 0xffffff # white
 PADDLE_COLOR: .word 0x55aaff # light blue
+BRICKS_COLOR: 
+	.word 0xff0000 # red
+	.word 0xffa500 # orange
+	.word 0xffff00 # yellow
+	      
 
 ##############################################################################
 # Mutable Data
 ##############################################################################
 ball: .word 0x10009c80
 paddle: .word 0x10009d80
+bricks_visibility: .word 1:48 # 3 rows * 16 bricks each row; 1 = brick visible, 0 otherwise
 ##############################################################################
 # Code
 ##############################################################################
@@ -54,6 +62,7 @@ draw_background:
 		lw $s0, ADDR_DSPL
 		lw $s1, ball
 		lw $s2, paddle
+		
 
 	draw_top_wall:
 		addi $t1, $zero, 0 # i
@@ -91,6 +100,28 @@ draw_background:
 			addi $t1, $t1, 1
 			b for_draw_right_wall
 	done_draw_wall:
+	
+	draw_bricks:
+		lw $a0, BRICKS_COLOR # bricks color for this row
+		lw $a1, ADDR_DSPL # wall bit address
+		addi $a1, $a1, 260 # first brick address of first row 256+4
+		lw $a2, bricks_visibility # visibiity of the first brick in first row
+		
+		#sw $a0, 0($t3) # store color argument
+		#sw $a1, 0($t4) # store first brick address argument
+		#sw $a2, 0($t5) # store first brick visibility argument
+		addi $t1, $zero, 0 # ith row gonna draw
+		lw $t2, NUM_ROWS # iteration number
+		for_draw_lines:
+			slt $t9, $t1, $t2
+			beq $t9, $zero, done_draw_bricks
+			jal draw_line
+			addi $a0, $a0, 1 # color for next row
+			addi $a1, $a1, 512 # first brick of next row
+			addi $a2, $a2, 16 # first brick visibility of next row
+			b for_draw_lines
+	done_draw_bricks:
+	
 		nop
 	sleep (500)
 
@@ -172,3 +203,26 @@ finish_program:
 ##############################################################################
 # Functions
 ##############################################################################
+draw_line:
+	addi $t1, $zero, 0 # i
+	lw $t2, ROW_BRICKS # iteration number per row
+	lw $t3, 0($a0) # store bricks color for this row
+	lw $t4, 0($a1) # first brick address of this row
+	lw $t5, 0($a2) # visibiity of the first brick in this row
+	for_draw_line:
+		slt $t9, $t1, $t2 # i < iteration num
+		beq $t9, $zero, done_draw_line
+		beqz $t5, else
+		sw $t3, 0($t4)
+		sw $t3, 4($t4)
+		sw $t3, 8($t4)
+		sw $t3, 12($t4)
+		j next_brick
+	else: addi $t4, $t4, 16
+	next_brick:
+		addi $t4, $t4, 4
+		addi $t1, $t1, 1
+		addi $t5, $t5, 1
+		b for_draw_line
+	done_draw_line: 
+		jr $ra
