@@ -54,6 +54,7 @@ draw_background:
 		lw $s0, ADDR_DSPL
 		lw $s1, ball
 		lw $s2, paddle
+
 	draw_top_wall:
 		addi $t1, $zero, 0 # i
 		lw $t2, ROW_WALL # iteration number
@@ -91,7 +92,7 @@ draw_background:
 			b for_draw_right_wall
 	done_draw_wall:
 		nop
-	sleep (1000)
+	sleep (500)
 
 game_loop:
 	# 1a. Check if key has been pressed
@@ -112,7 +113,7 @@ game_loop:
 
 		li $v0, 1                       # ask system to print $a0
     	syscall
-    	b draw_screen
+    	j draw_screen
 		
     	# below are different branch responses for different key inputs
     	respond_to_q:
@@ -120,10 +121,22 @@ game_loop:
 		respond_to_blank:
 			nop
 		respond_to_r:
-			nop
+			j main
 		respond_to_a:
-			nop
+			li $t0, 0x10009d0c # left most core can reach
+			slt $t9, $t0, $s2
+			beqz $t9,done_draw_paddle # omit move at the edge
+			sw $zero, 8($s2)
+			addi $s2, $s2, -4
+			b done_respond
 		respond_to_d:
+			li $t0, 0x10009df0 # right most core can reach
+			slt $t9, $s2, $t0
+			beqz $t9,done_respond # omit move at the edge
+			sw $zero, -8($s2)
+			addi $s2, $s2, 4
+			b done_respond
+		done_respond:
 			nop
 
     # 2a. Check for collisions
@@ -135,9 +148,9 @@ game_loop:
 			sw $t3, 0($s1)
 		draw_paddle:
 			lw $t3, PADDLE_COLOR
-			li $t1, 0
-			li $t2, 5
-			addi $t4, $s2, -8
+			li $t1, 0 # start i
+			li $t2, 5 # iteration number
+			addi $t4, $s2, -8 # start from -2 word from core
 			for_draw_paddle:
 				slt $t9, $t1, $t2
 				beq $t9, $zero, done_draw_paddle
