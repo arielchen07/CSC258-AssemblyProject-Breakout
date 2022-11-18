@@ -26,11 +26,14 @@ ROW_WALL: .word 64
 COLUMN_WALL: .word 30
 
 WALL_COLOR: .word 0x808080 # grey
+BALL_COLOR: .word 0xffffff # white
+PADDLE_COLOR: .word 0x55aaff # light blue
 
 ##############################################################################
 # Mutable Data
 ##############################################################################
-
+ball: .word 0x10009c80
+paddle: .word 0x10009d80
 ##############################################################################
 # Code
 ##############################################################################
@@ -47,8 +50,11 @@ WALL_COLOR: .word 0x808080 # grey
 main:
     # Initialize the game
 draw_background:
-	draw_top_wall:
+	load_save_register:
 		lw $s0, ADDR_DSPL
+		lw $s1, ball
+		lw $s2, paddle
+	draw_top_wall:
 		addi $t1, $zero, 0 # i
 		lw $t2, ROW_WALL # iteration number
 		lw $t3, WALL_COLOR # wall color
@@ -93,7 +99,7 @@ game_loop:
 		lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
     	lw $t8, 0($t0)                  # Load first word from keyboard
 		beq $t8, 1, keyboard_input      # If first word 1, key is pressed
-    	b main
+    	b draw_screen
 
     # 1b. Check which key has been pressed
     keyboard_input:
@@ -106,7 +112,7 @@ game_loop:
 
 		li $v0, 1                       # ask system to print $a0
     	syscall
-    	b main
+    	b draw_screen
 		
     	# below are different branch responses for different key inputs
     	respond_to_q:
@@ -123,6 +129,24 @@ game_loop:
     # 2a. Check for collisions
 	# 2b. Update locations (paddle, ball)
 	# 3. Draw the screen
+	draw_screen:
+		draw_ball:
+			lw $t3, BALL_COLOR
+			sw $t3, 0($s1)
+		draw_paddle:
+			lw $t3, PADDLE_COLOR
+			li $t1, 0
+			li $t2, 5
+			addi $t4, $s2, -8
+			for_draw_paddle:
+				slt $t9, $t1, $t2
+				beq $t9, $zero, done_draw_paddle
+				sw $t3, 0($t4)
+				addi $t4, $t4, 4
+				addi $t1, $t1, 1
+				b for_draw_paddle
+			done_draw_paddle:
+				nop
 	# 4. Sleep
 
     #5. Go back to 1
