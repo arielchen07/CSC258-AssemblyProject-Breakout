@@ -54,7 +54,8 @@ draw_background:
 		lw $t3, WALL_COLOR # wall color
 		lw $t4, ADDR_DSPL # wall bit address
 		for_draw_top_wall:
-			beq $t1, $t2, draw_left_wall
+			slt $t9, $t1, $t2
+			beq $t9, $zero, draw_left_wall
 			sw $t3, 0($t4)
 			addi $t4, $t4, 4
 			addi $t1, $t1, 1
@@ -64,7 +65,8 @@ draw_background:
 		lw $t2, COLUMN_WALL # iteration number
 		lw $t4, ADDR_DSPL # wall bit address
 		for_draw_left_wall:
-			beq $t1, $t2, draw_right_wall
+			slt $t9, $t1, $t2
+			beq $t9, $zero, draw_right_wall
 			sw $t3, 0($t4)
 			addi $t4, $t4, 256
 			addi $t1, $t1, 1
@@ -75,7 +77,8 @@ draw_background:
 		lw $t4, ADDR_DSPL
 		addi $t4, $t4, 252 # wall bit address
 		for_draw_right_wall:
-			beq $t1, $t2, done_draw_wall
+			slt $t9, $t1, $t2
+			beq $t9, $zero, done_draw_wall
 			sw $t3, 0($t4)
 			addi $t4, $t4, 256
 			addi $t1, $t1, 1
@@ -96,7 +99,8 @@ game_loop:
     keyboard_input:
     	lw $a0, 4($t0)                  # Load second word from keyboard
 		beq $a0, 0x20, respond_to_blank # start the game
-    	beq $a0, 0x71, respond_to_q     # Check if the key q was pressed
+    	beq $a0, 0x71, respond_to_q     # Check if the key q was pressed (quit)
+    	beq $a0, 0x72, respond_to_r		 # Check if the key r was pressed (restart)
 		beq $a0, 0x61, respond_to_a		# move paddle to the left
 		beq $a0, 0x64, respond_to_d		# move paddle to the right
 
@@ -108,6 +112,8 @@ game_loop:
     	respond_to_q:
     		j finish_program
 		respond_to_blank:
+			nop
+		respond_to_r:
 			nop
 		respond_to_a:
 			nop
@@ -121,6 +127,11 @@ game_loop:
 
     #5. Go back to 1
     b game_loop
-    
+
 finish_program:
-	nop
+	li $v0, 10
+	syscall
+
+##############################################################################
+# Functions
+##############################################################################
