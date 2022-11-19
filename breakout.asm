@@ -1,7 +1,7 @@
 ################ CSC258H1F Fall 2022 Assembly Final Project ##################
 # This file contains our implementation of Breakout.
 #
-# Student 1: Sirui Chen, Student Number
+# Student 1: Sirui Chen, 1006740671
 # Student 2: Tianyi Pan, 1007643739
 ######################## Bitmap Display Configuration ########################
 # - Unit width in pixels:       8
