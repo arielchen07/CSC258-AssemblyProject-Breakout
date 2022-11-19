@@ -37,8 +37,6 @@ BRICKS_COLOR:
 	.word 0x008080 # teal
 	.word 0x823ba0 # purple
 	.word 0xe080a0 # pink
-	
-	      
 
 ##############################################################################
 # Mutable Data
@@ -189,11 +187,76 @@ game_loop:
 	done_respond:
 		nop
 
+
+
+
+
+
     # 2a. Check for collisions
+	check_collision:
+		check_brick_collision:
+
+
+
+
+
+
+
+
+
+		check_wall_collision:
+
+
+
+
+
+
+
+		check_paddle_collision:
+			slt $t9, $s4, $zero # check paddle collision iff vertical direction is negative
+			beq $t9, $zero, done_collision
+			# make $t6 its next brick
+			add $t6, $s1, $s3 # add horizontal direction
+			add $t6, $s1, $s4 # add vertical direction
+			# check the line of the next brick
+			move $t7, $t6 # store the quotient, i.e. the line number of next brick
+			sub $t7, $t7, $s0
+			div $t7, 256
+			mfhi $t0
+			beq $t0, 32, finish_program # if the ball is at the bottom of the bitmap display
+			beq $t0, 29, paddle_collision_change
+			b done_collision
+			paddle_collision_change:
+				lw $t3, 0($t6) # color at its next brick
+				beqz $t3, done_collision # if color is black, done detection
+				# here detect which section of the paddle is hit
+				# Precondition: $t6 and $s2 in the same line
+				sub $t0, $s2, $t6
+				abs $t0, $t0 # here $t0 should be one of [0, 1, 2]
+				beq $t0, 2, invert_paddle_ball_direction
+				# if collides in the middle, just invert vertical direction
+				sub $s4, $zero, $t4
+				b done_paddle_collision
+				invert_paddle_ball_direction:
+					jal invert_direction
+			done_paddle_collision:
+				nop
+
+	done_collision:
+		nop
+
+
+
+
+
+
+
+
 	# 2b. Update locations for ball
-	sw $zero, 0($s1) # clear original ball
-	add $s1, $s1, $s3 # add horizontal direction
-	add $s1, $s1, $s4 # add vertical direction
+	update_ball:
+		sw $zero, 0($s1) # clear original ball
+		add $s1, $s1, $s3 # add horizontal direction
+		add $s1, $s1, $s4 # add vertical direction
 	# 3. Draw the screen
 	draw_screen:
 		draw_ball:
@@ -248,3 +311,8 @@ draw_line:
 		b for_draw_line
 	done_draw_line: 
 		jr $ra
+
+invert_direction:
+	sub $s3, $zero, $s3
+	sub $s4, $zero, $s4
+	jr $ra
