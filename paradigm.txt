@@ -1,7 +1,17 @@
-use $s to store immutable data (take a look at load_save_register:)
-use $t1 for iteartion start i=0
-use $t2 for iteration number (and for loop criterion)
-use $t3 for colors
-use $t4 for effective data in the loop
-use $t9 for destination register in slt in for loop
+register $s:
+1. $s0: display start address
+2. $s1: ball address
+3. $s2: paddle address
+4. $s3: horizontal direction
+5. $s4: vertical direction
+6. $s5: start enable (will implement in the future)
+
+register $t:
+1. $t1 for iteartion start i=0
+2. $t2 for iteration number (and for loop criterion)
+3. $t3 for colors
+4. $t4 for effective data in the loop
+5. $t6 for nested iteration start
+6. $t7 for nested iteration number
+7. $t9 for destination register in slt in for loop
 (take a look at the process of draw_top_wall: for reference)

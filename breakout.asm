@@ -34,9 +34,9 @@ BRICKS_COLOR:
 	.word 0xff0000 # red
 	.word 0xffa500 # orange
 	.word 0xffff00 # yellow
-	.word 0x008080 #teal
-	.word 0x823ba0 #purple
-	.word 0xe080a0 #pink
+	.word 0x008080 # teal
+	.word 0x823ba0 # purple
+	.word 0xe080a0 # pink
 	
 	      
 
@@ -66,7 +66,9 @@ draw_background:
 		lw $s0, ADDR_DSPL
 		lw $s1, ball
 		lw $s2, paddle
-		
+		li $s3, 0 # horizontal direction, one of [-4, 0, 4]
+		li $s4, 0 # vertical direction, one of [-256, 0, 256]
+		li $s5, 0 # start enable
 
 	draw_top_wall:
 		addi $t1, $zero, 0 # i
@@ -109,6 +111,7 @@ draw_background:
 		la $a0, BRICKS_COLOR # bricks color address for this row
 		la $a1, ADDR_DSPL # wall bit address
 		lw $a1, 0($a1)
+		# lw $a1, ADDR_DSPL
 		addi $a1, $a1, 264 # first brick address of first row 256+4+4
 		la $a2, bricks_visibility # visibiity of the first brick in first row
 		
@@ -133,7 +136,7 @@ game_loop:
 		lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
     	lw $t8, 0($t0)                  # Load first word from keyboard
 		beq $t8, 1, keyboard_input      # If first word 1, key is pressed
-    	b draw_screen
+    	b done_respond
 
     # 1b. Check which key has been pressed
     keyboard_input:
@@ -144,18 +147,31 @@ game_loop:
 		beq $a0, 0x61, respond_to_a		# move paddle to the left
 		beq $a0, 0x64, respond_to_d		# move paddle to the right
 
-		li $v0, 1                       # ask system to print $a0
-    	syscall
-    	j draw_screen
+    	b done_respond
 		
     	# below are different branch responses for different key inputs
     	respond_to_q:
     		j finish_program
 		respond_to_blank:
-			nop
+			li $s4, -256
+			li $s5, 1
+			b done_respond
 		respond_to_r:
-			j main
+			# clear background
+			li $t1, 0 # start i
+			li $t2, 2048 # 64 rows * 32 columns
+			move $t4, $s0
+			for_clear_background:
+				slt $t9, $t1, $t2
+				beqz $t9, done_clear_background
+				sw $zero, 0($t4)
+				addi $t4, $t4, 4
+				addi $t1, $t1, 1
+				b for_clear_background
+			done_clear_background:
+				j main
 		respond_to_a:
+			beqz $s5, done_respond # if haven't started, cannot move
 			li $t0, 0x10009d0c # left most core can reach
 			slt $t9, $t0, $s2
 			beqz $t9,done_draw_paddle # omit move at the edge
@@ -163,17 +179,21 @@ game_loop:
 			addi $s2, $s2, -4
 			b done_respond
 		respond_to_d:
+			beqz $s5, done_respond # if haven't started, cannot move
 			li $t0, 0x10009df0 # right most core can reach
 			slt $t9, $s2, $t0
 			beqz $t9,done_respond # omit move at the edge
 			sw $zero, -8($s2)
 			addi $s2, $s2, 4
 			b done_respond
-		done_respond:
-			nop
+	done_respond:
+		nop
 
     # 2a. Check for collisions
-	# 2b. Update locations (paddle, ball)
+	# 2b. Update locations for ball
+	sw $zero, 0($s1) # clear original ball
+	add $s1, $s1, $s3 # add horizontal direction
+	add $s1, $s1, $s4 # add vertical direction
 	# 3. Draw the screen
 	draw_screen:
 		draw_ball:
@@ -194,8 +214,8 @@ game_loop:
 			done_draw_paddle:
 				nop
 	# 4. Sleep
-
-    #5. Go back to 1
+	sleep (500)
+    # 5. Go back to 1
     b game_loop
 
 finish_program:
