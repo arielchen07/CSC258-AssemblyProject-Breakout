@@ -38,6 +38,8 @@ BRICKS_COLOR:
 	.word 0x823ba0 # purple
 	.word 0xe080a0 # pink
 
+SPEED_RATIO: .word 4
+
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -67,6 +69,7 @@ draw_background:
 		li $s3, 0 # horizontal direction, one of [-4, 0, 4]
 		li $s4, 0 # vertical direction, one of [-256, 0, 256]
 		li $s5, 0 # start enable
+		li $s6, 0 # speed ratio
 
 	draw_top_wall:
 		addi $t1, $zero, 0 # i
@@ -187,13 +190,33 @@ game_loop:
 	done_respond:
 		nop
 
-
-
-
-
-
     # 2a. Check for collisions
 	check_collision:
+		# make $t6 its next brick
+		add $t6, $s1, $s3 # add horizontal direction
+		add $t6, $s1, $s4 # add vertical direction
+		move $t7, $t6 # store the quotient, i.e. the line number of next brick
+		sub $t7, $t7, $s0
+		li $t8, 256 # save divisor
+		div $t7, $t8
+
+		check_end_program:
+			mfhi $t0
+			beq $t0, 32, finish_program # if the ball is at the bottom of the bitmap display
+		
+		check_wall_collision:
+			mfhi $t0
+			bne $t0, 0, check_vertical_wall # check top wall
+			sub $s4, $zero, $s4 # change vertical direction
+			check_vertical_wall:
+			mflo $t0
+			# if the next brick is the left or the right wall (0 or 63 for remainder), update horizontal direction
+			beq $t0, 0, wall_direction_change
+			beq $t0, 63, wall_direction_change
+			b check_brick_collision
+			wall_direction_change:
+				sub $s3, $zero, $s3
+
 		check_brick_collision:
 
 
@@ -204,43 +227,53 @@ game_loop:
 
 
 
-		check_wall_collision:
-
-
-
 
 
 
 
 		check_paddle_collision:
 			slt $t9, $s4, $zero # check paddle collision iff vertical direction is negative
-			beq $t9, $zero, done_collision
-			# make $t6 its next brick
-			add $t6, $s1, $s3 # add horizontal direction
-			add $t6, $s1, $s4 # add vertical direction
-			# check the line of the next brick
-			move $t7, $t6 # store the quotient, i.e. the line number of next brick
-			sub $t7, $t7, $s0
-			div $t7, 256
-			mfhi $t0
-			beq $t0, 32, finish_program # if the ball is at the bottom of the bitmap display
-			beq $t0, 29, paddle_collision_change
-			b done_collision
-			paddle_collision_change:
+			beq $t9, $zero, done_paddle_collision
+
+			beq $t0, 29, paddle_bottom_check # the line where paddle locates
+			b done_paddle_collision
+
+			paddle_bottom_check: # check if the pixel below the ball is paddle
+				add $t6, $s1, $s4
 				lw $t3, 0($t6) # color at its next brick
-				beqz $t3, done_collision # if color is black, done detection
-				# here detect which section of the paddle is hit
-				# Precondition: $t6 and $s2 in the same line
+				beqz $t3, done_paddle_collision # if color is black, done detection
+
+			paddle_collision_change:
 				sub $t0, $s2, $t6
-				abs $t0, $t0 # here $t0 should be one of [0, 1, 2]
-				beq $t0, 2, invert_paddle_ball_direction
+				abs $t5, $t0 # here $t0 should be one of [0, 1, 2]
 				# if collides in the middle, just invert vertical direction
-				sub $s4, $zero, $t4
-				b done_paddle_collision
+				blt $t5, 2, invert_paddle_ball_direction
+				# else collide on the edge; break into cases
+				beq $t5, -2, collide_paddle_left
+				beq $t5, 2, collide_paddle_right
+
 				invert_paddle_ball_direction:
-					jal invert_direction
-			done_paddle_collision:
-				nop
+					sub $s3, $zero, $s3
+					sub $s4, $zero, $s4
+					b done_collision
+				collide_paddle_left:
+					# change vertical
+					sub $s4, $zero, $s4
+					# change horizontal
+					addi $s3, $s3, -1
+					bne $s3, -2, collide_paddle_right
+					li $s3, -1
+
+				collide_paddle_right:
+					sub $s4, $zero, $s4
+					# change vertical
+					sub $s4, $zero, $s4
+					addi $s3, $s3, 1
+					bne $s3, 2, done_paddle_collision
+					li $s3, 1
+
+		done_paddle_collision:
+			nop
 
 	done_collision:
 		nop
@@ -254,9 +287,13 @@ game_loop:
 
 	# 2b. Update locations for ball
 	update_ball:
+		addi $s6, $s6, 1
+		lw $t4, SPEED_RATIO # ratio of speed
+		blt $s6, $t4, draw_screen
 		sw $zero, 0($s1) # clear original ball
 		add $s1, $s1, $s3 # add horizontal direction
 		add $s1, $s1, $s4 # add vertical direction
+		move $s6, $zero # reset back to 0, wait for next accumulation
 	# 3. Draw the screen
 	draw_screen:
 		draw_ball:
@@ -277,7 +314,7 @@ game_loop:
 			done_draw_paddle:
 				nop
 	# 4. Sleep
-	sleep (500)
+	sleep (125)
     # 5. Go back to 1
     b game_loop
 
@@ -311,8 +348,3 @@ draw_line:
 		b for_draw_line
 	done_draw_line: 
 		jr $ra
-
-invert_direction:
-	sub $s3, $zero, $s3
-	sub $s4, $zero, $s4
-	jr $ra

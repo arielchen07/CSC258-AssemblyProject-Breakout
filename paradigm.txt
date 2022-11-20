@@ -4,7 +4,8 @@ register $s:
 3. $s2: paddle address
 4. $s3: horizontal direction
 5. $s4: vertical direction
-6. $s5: start enable (will implement in the future)
+6. $s5: start enable
+7. $s6: speed ratio between ball and paddle
 
 register $t:
 1. $t1 for iteartion start i=0
