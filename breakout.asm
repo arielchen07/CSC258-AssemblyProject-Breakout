@@ -245,15 +245,14 @@ game_loop:
 
 			paddle_collision_change:
 				sub $t0, $s2, $t6
-				abs $t5, $t0 # here $t0 should be one of [0, 1, 2]
+				abs $t5, $t0 # here $t5 should be one of [0, 1, 2]
 				# if collides in the middle, just invert vertical direction
-				blt $t5, 2, invert_paddle_ball_direction
+				blt $t5, 2, collide_paddle_middle
 				# else collide on the edge; break into cases
 				beq $t5, -2, collide_paddle_left
 				beq $t5, 2, collide_paddle_right
 
-				invert_paddle_ball_direction:
-					sub $s3, $zero, $s3
+				collide_paddle_middle: # just inv
 					sub $s4, $zero, $s4
 					b done_collision
 				collide_paddle_left:
@@ -261,16 +260,16 @@ game_loop:
 					sub $s4, $zero, $s4
 					# change horizontal
 					addi $s3, $s3, -1
-					bne $s3, -2, collide_paddle_right
-					li $s3, -1
+					bne $s3, -2, done_paddle_collision
+					li $s3, -1 # make it restricted to direction bound again
 
 				collide_paddle_right:
-					sub $s4, $zero, $s4
 					# change vertical
 					sub $s4, $zero, $s4
+					# change horizontal
 					addi $s3, $s3, 1
 					bne $s3, 2, done_paddle_collision
-					li $s3, 1
+					li $s3, 1 # make it restricted to direction bound again
 
 		done_paddle_collision:
 			nop
