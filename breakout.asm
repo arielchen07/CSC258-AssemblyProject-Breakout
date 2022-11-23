@@ -45,7 +45,7 @@ SPEED_RATIO: .word 4
 ##############################################################################
 ball: .word 0x10009c80
 paddle: .word 0x10009d80
-bricks_visibility: .word 1:90 # 6 rows * 15 bricks each row; 1 = brick visible, 0 otherwise
+bricks_visibility: .word 0:90 # 6 rows * 15 bricks each row; 1 = brick visible, 0 otherwise
 ##############################################################################
 # Code
 ##############################################################################
@@ -71,6 +71,19 @@ draw_background:
 		li $s5, 0 # start enable
 		li $s6, 0 # speed ratio
 
+	set_brick_visibility:
+		li $t1, 0 # i = 0
+		li, $t2, 90 # iteration number
+		li, $t3, 1 # visibility
+		la, $t4, bricks_visibility # address of bricks_visibility
+		for_set_visibility:
+			slt $t9, $t1, $t2
+			beq $t9, $zero, draw_top_wall
+			sw $t3, 0($t4)
+			addi $t4, $t4, 4
+			addi $t1, $t1, 1
+			b for_set_visibility
+
 	draw_top_wall:
 		addi $t1, $zero, 0 # i
 		lw $t2, ROW_WALL # iteration number
@@ -83,6 +96,7 @@ draw_background:
 			addi $t4, $t4, 4
 			addi $t1, $t1, 1
 			b for_draw_top_wall
+	
 	draw_left_wall:
 		addi $t1, $zero, 0 # i
 		lw $t2, COLUMN_WALL # iteration number
@@ -94,6 +108,7 @@ draw_background:
 			addi $t4, $t4, 256
 			addi $t1, $t1, 1
 			b for_draw_left_wall
+	
 	draw_right_wall:
 		addi $t1, $zero, 0 # i
 		lw $t2, COLUMN_WALL # iteration number
@@ -106,29 +121,10 @@ draw_background:
 			addi $t4, $t4, 256
 			addi $t1, $t1, 1
 			b for_draw_right_wall
+
 	done_draw_wall:
-	
-	draw_bricks:
-		la $a0, BRICKS_COLOR # bricks color address for this row
-		la $a1, ADDR_DSPL # wall bit address
-		lw $a1, 0($a1)
-		# lw $a1, ADDR_DSPL
-		addi $a1, $a1, 264 # first brick address of first row 256+4+4
-		la $a2, bricks_visibility # visibiity of the first brick in first row
-		
-		addi $t1, $zero, 0 # ith row gonna draw
-		lw $t2, NUM_ROWS # iteration number
-		for_draw_lines:
-			slt $t9, $t1, $t2
-			beq $t9, $zero, done_draw_bricks
-			jal draw_line
-			addi $t1, $t1, 1 # increament to i+1
-			addi $a0, $a0, 4 # color for next row
-			addi $a1, $a1, 16 # first brick of next row
-			b for_draw_lines
-	done_draw_bricks:
-	
 		nop
+
 	sleep (500)
 
 game_loop:
@@ -192,6 +188,7 @@ game_loop:
 
     # 2a. Check for collisions
 	# only check if ball is about to move
+	beqz $s5, done_collision
 	lw $t4, SPEED_RATIO
 	addi $t4, $t4, -1
 	slt $t9, $s6, $t4
@@ -223,27 +220,61 @@ game_loop:
 				sub $s3, $zero, $s3 # horizontal direction change
 
 		check_brick_collision:
-			# check for top brick
-			collide_top_brick:
+			# make $t6 its next brick
+			add $t6, $s1, $s3 # add horizontal direction
+			add $t6, $t6, $s4 # add vertical direction
+			move $t7, $t6 # store the quotient, i.e. the line number of next brick
+			sub $t7, $t7, $s0
+			li $t8, 256 # save divisor
+			div $t7, $t8
+			mflo $t0 # row number
+			bgt $t0, 10, done_brick_collision
 
+			# check for top brick
+			# corner_enable: which is nonzero after vertical and side check
+			# if and only if one of the bricks is removed
+			li $s7, 0 # corner enable
+			collide_vertical_brick:
+				beqz $s4, collide_side_brick
+				add $t6, $s1, $s4
+				lw $t3, 0($t6) # color of the vertical brick in its direction
+				# add the last digit to $t0
+				andi $t1, $t3, 0x1
+				add $s7, $s7, $t1
+				# check if collision occurs
+				beqz $t3, collide_side_brick
+				move $a0, $t6
+				jal reduce_visibility
+				# change vertical direction
+				sub $s4, $zero, $s4
 			# check for side brick
 			collide_side_brick:
-
-				# if the any of top or side brick exist, done collision
-				# otherwise, move to corner check
-				# b done_brick_collision
+				beqz $s3, collide_corner_brick
+				add $t6, $s1, $s3
+				lw $t3, 0($t6)
+				# add the last digit to $t0
+				andi $t1, $t3, 0x1
+				add $s7, $s7, $t1
+				# check if collision occurs
+				beqz $t3, collide_corner_brick
+				move $a0, $t6
+				jal reduce_visibility
+				sub $s3, $zero, $s3
 			
 			# check for corner brick
 			collide_corner_brick:
+				# if the any of top or side brick exist, done collision
+				bne $s7, $zero, done_brick_collision
+				# otherwise, move to corner check
 				add $t6, $s1, $s3 # add horizontal direction
 				add $t6, $t6, $s4 # add vertical direction
-
-
-
-
-
-
-
+				lw $t3, 0($t6)
+				beqz $t3, done_brick_collision
+				move $a0, $t6
+				jal reduce_visibility
+				sub $s3, $zero, $s3
+				sub $s4, $zero, $s4
+				b done_brick_collision
 
 		done_brick_collision:
 			nop
@@ -252,8 +283,16 @@ game_loop:
 
 
 		check_paddle_collision:
-			sgt $t9, $s4, $zero # check paddle collision iff vertical direction is negative
+			sgt $t9, $s4, $zero # check paddle collision iff vertical direction is downward
 			beq $t9, $zero, done_paddle_collision
+			
+			# make $t6 its next brick
+			add $t6, $s1, $s3 # add horizontal direction
+			add $t6, $t6, $s4 # add vertical direction
+			move $t7, $t6 # store the quotient, i.e. the line number of next brick
+			sub $t7, $t7, $s0
+			li $t8, 256 # save divisor
+			div $t7, $t8
 			
 			mflo $t0 # quotient
 			beq $t0, 29, paddle_bottom_check # the line where paddle locates
@@ -315,10 +354,6 @@ game_loop:
 
 
 
-
-
-
-
 	# 2b. Update locations for ball
 	update_ball:
 		addi $s6, $s6, 1
@@ -333,6 +368,7 @@ game_loop:
 		draw_ball:
 			lw $t3, BALL_COLOR
 			sw $t3, 0($s1)
+		
 		draw_paddle:
 			lw $t3, PADDLE_COLOR
 			li $t1, 0 # start i
@@ -347,6 +383,30 @@ game_loop:
 				b for_draw_paddle
 			done_draw_paddle:
 				nop
+		
+		draw_bricks:
+		la $a0, BRICKS_COLOR # bricks color address for this row
+		la $a1, ADDR_DSPL # wall bit address
+		lw $a1, 0($a1)
+		# lw $a1, ADDR_DSPL
+		addi $a1, $a1, 264 # first brick address of first row 256+4+4
+		la $a2, bricks_visibility # visibility of the first brick in first row
+		
+		addi $t1, $zero, 0 # ith row gonna draw
+		lw $t2, NUM_ROWS # iteration number
+		for_draw_lines:
+			slt $t9, $t1, $t2
+			beq $t9, $zero, done_draw_bricks
+			jal draw_line
+			addi $t1, $t1, 1 # increament to i+1
+			addi $a0, $a0, 4 # color for next row
+			addi $a1, $a1, 16 # first brick of next row
+			b for_draw_lines
+		done_draw_bricks:
+			nop
+
+
+
 	# 4. Sleep
 	sleep (25)
     # 5. Go back to 1
@@ -368,12 +428,21 @@ draw_line:
 		slt $t9, $t6, $t7 # i < iteration num
 		beq $t9, $zero, done_draw_line
 		lw $t5, 0($a2) # $t5 = visibility[i]
-		beqz $t5, next_brick
-		sw $t3, 0($a1)
-		sw $t3, 4($a1)
-		sw $t3, 8($a1)
-		sw $t3, 12($a1)
-		j next_brick
+		bnez $t5, draw_single_brick
+		lw $t4, 0($a1) # current color of brick core
+		beqz $t4, next_brick # if it is black, skip to the next brick
+		# else, draw to black
+		sw $zero, 0($a1)
+		sw $zero, 4($a1)
+		sw $zero, 8($a1)
+		sw $zero, 12($a1)
+		b next_brick
+		# draw_single_brick iff visibility is 1
+		draw_single_brick:
+			sw $t3, 0($a1)
+			sw $t3, 4($a1)
+			sw $t3, 8($a1)
+			sw $t3, 12($a1)
 	# else: addi $a1, $a1, 12
 	next_brick:
 		addi $a1, $a1, 16
@@ -382,3 +451,34 @@ draw_line:
 		b for_draw_line
 	done_draw_line: 
 		jr $ra
+
+# get_visibility(brick_address)
+# 	reduce the visibility of the brick from the memory
+#
+# 	Precondition: the value stored in brick_address is non-zero
+reduce_visibility:
+	# first, find the row and column of this brick
+	addi $t0, $s0, 264 # position of the first brick
+	sub $t7, $a0, $t0
+	li $t8, 256 # line width
+	div $t7, $t8
+	mflo $t1 # store the row number
+	mfhi $t7 # store the remainder
+	li $t8, 16 # brick width
+	div $t7, $t8
+	mflo $t2 # store the ordinal number of the brick in this row
+
+	# next, calculate the ordinal number of the brick
+	mul $t1, $t1, 15
+	add $t4, $t1, $t2 # store ordinal number
+
+	# finally, change the visibility
+	mul $t4, $t4, 4
+	la $t5, bricks_visibility
+	add $t5, $t5, $t4 # get the target brick visibility address
+	lw $t3, 0($t5)
+	srl $t3, $t3, 1
+	sw $t3, 0($t5)
+
+	# Epilogue
+	jr $ra
