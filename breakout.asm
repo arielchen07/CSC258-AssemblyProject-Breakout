@@ -191,33 +191,52 @@ game_loop:
 		nop
 
     # 2a. Check for collisions
+	# only check if ball is about to move
+	lw $t4, SPEED_RATIO
+	addi $t4, $t4, -1
+	slt $t9, $s6, $t4
+	beq $t9, 1, done_collision
 	check_collision:
 		# make $t6 its next brick
 		add $t6, $s1, $s3 # add horizontal direction
-		add $t6, $s1, $s4 # add vertical direction
+		add $t6, $t6, $s4 # add vertical direction
 		move $t7, $t6 # store the quotient, i.e. the line number of next brick
 		sub $t7, $t7, $s0
 		li $t8, 256 # save divisor
 		div $t7, $t8
 
 		check_end_program:
-			mfhi $t0
+			mflo $t0 # quotient
 			beq $t0, 32, finish_program # if the ball is at the bottom of the bitmap display
 		
 		check_wall_collision:
-			mfhi $t0
+			mflo $t0 # row number
 			bne $t0, 0, check_vertical_wall # check top wall
-			sub $s4, $zero, $s4 # change vertical direction
+			sub $s4, $zero, $s4 # change vertical direction (collide with top wall)
 			check_vertical_wall:
-			mflo $t0
+			mfhi $t0 # column number
 			# if the next brick is the left or the right wall (0 or 63 for remainder), update horizontal direction
 			beq $t0, 0, wall_direction_change
-			beq $t0, 63, wall_direction_change
+			beq $t0, 252, wall_direction_change
 			b check_brick_collision
 			wall_direction_change:
-				sub $s3, $zero, $s3
+				sub $s3, $zero, $s3 # horizontal direction change
 
 		check_brick_collision:
+			# check for top brick
+			collide_top_brick:
+
+			# check for side brick
+			collide_side_brick:
+
+				# if the any of top or side brick exist, done collision
+				# otherwise, move to corner check
+				# b done_brick_collision
+			
+			# check for corner brick
+			collide_corner_brick:
+				add $t6, $s1, $s3 # add horizontal direction
+				add $t6, $t6, $s4 # add vertical direction
 
 
 
@@ -226,50 +245,66 @@ game_loop:
 
 
 
-
+		done_brick_collision:
+			nop
 
 
 
 
 		check_paddle_collision:
-			slt $t9, $s4, $zero # check paddle collision iff vertical direction is negative
+			sgt $t9, $s4, $zero # check paddle collision iff vertical direction is negative
 			beq $t9, $zero, done_paddle_collision
-
+			
+			mflo $t0 # quotient
 			beq $t0, 29, paddle_bottom_check # the line where paddle locates
 			b done_paddle_collision
 
 			paddle_bottom_check: # check if the pixel below the ball is paddle
 				add $t6, $s1, $s4
 				lw $t3, 0($t6) # color at its next brick
-				beqz $t3, done_paddle_collision # if color is black, done detection
+				beqz $t3, collide_paddle_corner # if color is black, done detection
 
 			paddle_collision_change:
 				sub $t0, $s2, $t6
-				abs $t5, $t0 # here $t5 should be one of [0, 1, 2]
+				abs $t5, $t0 # here $t5 should be one of [0, 4, 8]
 				# if collides in the middle, just invert vertical direction
-				blt $t5, 2, collide_paddle_middle
+				blt $t5, 8, collide_paddle_middle
 				# else collide on the edge; break into cases
-				beq $t5, -2, collide_paddle_left
-				beq $t5, 2, collide_paddle_right
+				beq $t0, 8, collide_paddle_left
+				beq $t0, -8, collide_paddle_right
 
-				collide_paddle_middle: # just inv
+				collide_paddle_middle: # just invert vertical direction
 					sub $s4, $zero, $s4
-					b done_collision
+					b done_paddle_collision
 				collide_paddle_left:
 					# change vertical
 					sub $s4, $zero, $s4
 					# change horizontal
-					addi $s3, $s3, -1
-					bne $s3, -2, done_paddle_collision
-					li $s3, -1 # make it restricted to direction bound again
+					addi $s3, $s3, -4
+					bne $s3, -8, done_paddle_collision
+					li $s3, -4 # make it restricted to direction bound again
+					b done_paddle_collision
 
 				collide_paddle_right:
 					# change vertical
 					sub $s4, $zero, $s4
 					# change horizontal
-					addi $s3, $s3, 1
-					bne $s3, 2, done_paddle_collision
-					li $s3, 1 # make it restricted to direction bound again
+					addi $s3, $s3, 4
+					bne $s3, 8, done_paddle_collision
+					li $s3, 4 # make it restricted to direction bound again
+					b done_paddle_collision
+				
+				collide_paddle_corner:
+					# make $t6 the next brick
+					add $t6, $s1, $s3 # add horizontal direction
+					add $t6, $t6, $s4 # add vertical direction
+					# check color of the next brick
+					lw $t3, 0($t6)
+					beqz $t3, done_paddle_collision # if black, done paddle check
+					# else, invert all direction
+					sub $s3, $zero, $s3
+					sub $s4, $zero, $s4
+					b done_paddle_collision
 
 		done_paddle_collision:
 			nop
@@ -313,7 +348,7 @@ game_loop:
 			done_draw_paddle:
 				nop
 	# 4. Sleep
-	sleep (125)
+	sleep (25)
     # 5. Go back to 1
     b game_loop
 
