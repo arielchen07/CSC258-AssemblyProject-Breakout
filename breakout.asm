@@ -34,7 +34,7 @@ BRICKS_COLOR:
 	.word 0xff0000 # red
 	.word 0xffa500 # orange
 	.word 0xffff00 # yellow
-	.word 0x008080 # teal
+	.word 0xdef2e1 # teal
 	.word 0x823ba0 # purple
 	.word 0xe080a0 # pink
 
@@ -150,6 +150,7 @@ game_loop:
     	respond_to_q:
     		j finish_program
 		respond_to_blank:
+			bne $s5, $zero, done_respond
 			li $s4, -256
 			li $s5, 1
 			b done_respond
@@ -239,7 +240,7 @@ game_loop:
 				add $t6, $s1, $s4
 				lw $t3, 0($t6) # color of the vertical brick in its direction
 				# add the last digit to $t0
-				andi $t1, $t3, 0x1
+				andi $t1, $t3, 0x800000
 				add $s7, $s7, $t1
 				# check if collision occurs
 				beqz $t3, collide_side_brick
@@ -253,7 +254,7 @@ game_loop:
 				add $t6, $s1, $s3
 				lw $t3, 0($t6)
 				# add the last digit to $t0
-				andi $t1, $t3, 0x1
+				andi $t1, $t3, 0x800000
 				add $s7, $s7, $t1
 				# check if collision occurs
 				beqz $t3, collide_corner_brick
@@ -482,3 +483,10 @@ reduce_visibility:
 
 	# Epilogue
 	jr $ra
+
+# display_number(start_address, num)
+# 	display 0-9 with start_address as top left
+# 	total 5 * 3 pixels
+#
+# 	Precondition: num is one of 0-9
+display_number:
