@@ -409,7 +409,7 @@ game_loop:
 
 
 	# 4. Sleep
-	sleep (25)
+	sleep (160)
     # 5. Go back to 1
     b game_loop
 
