@@ -25,7 +25,7 @@ ADDR_KBRD:
 ROW_WALL: .word 64
 COLUMN_WALL: .word 30
 ROW_BRICKS: .word 15 # brick_size = 4, each row has 15 bricks
-NUM_ROWS: 6
+NUM_ROWS: .word 6
 
 WALL_COLOR: .word 0x808080 # grey
 BALL_COLOR: .word 0xffffff # white
