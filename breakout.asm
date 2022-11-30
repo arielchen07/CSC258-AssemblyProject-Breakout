@@ -74,7 +74,7 @@ draw_background:
 	set_brick_visibility:
 		li $t1, 0 # i = 0
 		li, $t2, 90 # iteration number
-		li, $t3, 1 # visibility
+		li, $t3, 3 # visibility
 		la, $t4, bricks_visibility # address of bricks_visibility
 		for_set_visibility:
 			slt $t9, $t1, $t2
@@ -206,6 +206,7 @@ game_loop:
 		check_end_program:
 			mflo $t0 # quotient
 			beq $t0, 32, finish_program # if the ball is at the bottom of the bitmap display
+			bgt $t0, 30, done_collision
 		
 		check_wall_collision:
 			mflo $t0 # row number
@@ -409,7 +410,7 @@ game_loop:
 
 
 	# 4. Sleep
-	sleep (160)
+	sleep (40)
     # 5. Go back to 1
     b game_loop
 
@@ -424,7 +425,7 @@ finish_program:
 draw_line:
 	addi $t6, $zero, 0 # i
 	lw $t7, ROW_BRICKS # iteration number per row
-	lw $t3, 0($a0) # store bricks color for this row
+	lw $t3, 0($a0) # store (base) bricks color for this row
 	for_draw_line:
 		slt $t9, $t6, $t7 # i < iteration num
 		beq $t9, $zero, done_draw_line
@@ -438,12 +439,20 @@ draw_line:
 		sw $zero, 8($a1)
 		sw $zero, 12($a1)
 		b next_brick
-		# draw_single_brick iff visibility is 1
+		# draw_single_brick iff visibility is nonzero
 		draw_single_brick:
+			move $t0, $t3
+			# this reduce the color by a factor of 2
+			bgt $t5, 1, skip_modify_color
+			andi $t3, $t3, 0xfefefe
+			srl $t3, $t3, 1
+			skip_modify_color:
+				nop
 			sw $t3, 0($a1)
 			sw $t3, 4($a1)
 			sw $t3, 8($a1)
 			sw $t3, 12($a1)
+			move $t3, $t0
 	# else: addi $a1, $a1, 12
 	next_brick:
 		addi $a1, $a1, 16
