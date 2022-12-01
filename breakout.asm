@@ -46,6 +46,16 @@ SPEED_RATIO: .word 4
 ball: .word 0x10009c80
 paddle: .word 0x10009d80
 bricks_visibility: .word 0:90 # 6 rows * 15 bricks each row; 1 = brick visible, 0 otherwise
+
+number_display_left: .word 0x10008e10
+number_display_right: .word 0x10008ed0
+number_display_center: .word 0x10008e74
+
+edit_enable: .word 0 # edit enable for number display
+
+highest_score: .word 0
+current_score: .word 0
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -69,7 +79,7 @@ draw_background:
 		li $s3, 0 # horizontal direction, one of [-4, 0, 4]
 		li $s4, 0 # vertical direction, one of [-256, 0, 256]
 		li $s5, 0 # start enable
-		li $s6, 0 # speed ratio
+		li $s6, 0 # speed ratio counter
 
 	set_brick_visibility:
 		li $t1, 0 # i = 0
@@ -125,6 +135,32 @@ draw_background:
 	done_draw_wall:
 		nop
 
+	draw_bricks_init:
+		la $a0, BRICKS_COLOR # bricks color address for this row
+		la $a1, ADDR_DSPL # wall bit address
+		lw $a1, 0($a1)
+		# lw $a1, ADDR_DSPL
+		addi $a1, $a1, 264 # first brick address of first row 256+4+4
+		la $a2, bricks_visibility # visibility of the first brick in first row
+		
+		addi $t1, $zero, 0 # ith row gonna draw
+		lw $t2, NUM_ROWS # iteration number
+		for_draw_lines_init:
+			slt $t9, $t1, $t2
+			beq $t9, $zero, done_draw_bricks_init
+			jal draw_line
+			addi $t1, $t1, 1 # increament to i+1
+			addi $a0, $a0, 4 # color for next row
+			addi $a1, $a1, 16 # first brick of next row
+			b for_draw_lines_init
+	done_draw_bricks_init:
+		nop
+	
+	# display the highest score at the center
+	lw $a0, number_display_center
+	lw $a1, highest_score
+	jal display_score_number
+
 	sleep (500)
 
 game_loop:
@@ -150,24 +186,26 @@ game_loop:
     	respond_to_q:
     		j finish_program
 		respond_to_blank:
+			# if game already started, ignore blank key press
 			bne $s5, $zero, done_respond
+			# initialize direction
 			li $s4, -256
+			# activate start enable
 			li $s5, 1
+			# clear highest score in the middle
+			lw $a0, number_display_center
+			jal remove_number
+			# display current score (0) on the right
+			lw $a0, number_display_right
+			move $a1, $zero
+			jal display_score_number
+			# start the game
 			b done_respond
 		respond_to_r:
 			# clear background
-			li $t1, 0 # start i
-			li $t2, 2048 # 64 rows * 32 columns
-			move $t4, $s0
-			for_clear_background:
-				slt $t9, $t1, $t2
-				beqz $t9, done_clear_background
-				sw $zero, 0($t4)
-				addi $t4, $t4, 4
-				addi $t1, $t1, 1
-				b for_clear_background
-			done_clear_background:
-				j main
+			jal clear_screen
+			# go back and restart
+			j main
 		respond_to_a:
 			beqz $s5, done_respond # if haven't started, cannot move
 			li $t0, 0x10009d0c # left most core can reach
@@ -205,7 +243,7 @@ game_loop:
 
 		check_end_program:
 			mflo $t0 # quotient
-			beq $t0, 32, finish_program # if the ball is at the bottom of the bitmap display
+			beq $t0, 32, end_of_game # if the ball is at the bottom of the bitmap display
 			bgt $t0, 30, done_collision
 		
 		check_wall_collision:
@@ -240,13 +278,21 @@ game_loop:
 				beqz $s4, collide_side_brick
 				add $t6, $s1, $s4
 				lw $t3, 0($t6) # color of the vertical brick in its direction
-				# add the last digit to $t0
-				andi $t1, $t3, 0x800000
-				add $s7, $s7, $t1
+				sne $s7, $t3, $zero
 				# check if collision occurs
 				beqz $t3, collide_side_brick
 				move $a0, $t6
 				jal reduce_visibility
+				# change edit enable
+				la $t0, edit_enable
+				lw $t9, 0($t0)
+				addi $t9, $t9, 1 # enable edit
+				sw $t9, 0($t0)
+				# change current score
+				la $t0, current_score
+				lw $t1, 0($t0)
+				add $t1, $t1, $v0
+				sw $t1, 0($t0)
 				# change vertical direction
 				sub $s4, $zero, $s4
 			# check for side brick
@@ -254,13 +300,22 @@ game_loop:
 				beqz $s3, collide_corner_brick
 				add $t6, $s1, $s3
 				lw $t3, 0($t6)
-				# add the last digit to $t0
-				andi $t1, $t3, 0x800000
-				add $s7, $s7, $t1
+				sne $s7, $t3, $zero
 				# check if collision occurs
 				beqz $t3, collide_corner_brick
 				move $a0, $t6
 				jal reduce_visibility
+				# change edit enable
+				la $t0, edit_enable
+				lw $t9, 0($t0)
+				addi $t9, $t9, 1 # enable edit
+				sw $t9, 0($t0)
+				# change current score
+				la $t0, current_score
+				lw $t1, 0($t0)
+				add $t1, $t1, $v0
+				sw $t1, 0($t0)
+				# change horizontal direction
 				sub $s3, $zero, $s3
 			
 			# check for corner brick
@@ -274,13 +329,23 @@ game_loop:
 				beqz $t3, done_brick_collision
 				move $a0, $t6
 				jal reduce_visibility
+				# change edit enable
+				la $t0, edit_enable
+				lw $t9, 0($t0)
+				addi $t9, $t9, 1 # enable edit
+				sw $t9, 0($t0)
+				# change current score
+				la $t0, current_score
+				lw $t1, 0($t0)
+				add $t1, $t1, $v0
+				sw $t1, 0($t0)
+				# change both direction
 				sub $s3, $zero, $s3
 				sub $s4, $zero, $s4
 				b done_brick_collision
 
 		done_brick_collision:
 			nop
-
 
 
 
@@ -386,6 +451,8 @@ game_loop:
 			done_draw_paddle:
 				nop
 		
+		lw $t0, edit_enable
+		beqz $t0, done_draw_bricks
 		draw_bricks:
 		la $a0, BRICKS_COLOR # bricks color address for this row
 		la $a1, ADDR_DSPL # wall bit address
@@ -408,13 +475,103 @@ game_loop:
 			nop
 
 
+		# get current display address
+		lw $a0, number_display_left
+		lw $t3, 8($a0) # upper-right corner of first digit: must nonzero if already display here
+		bne $t3, $zero, done_set_address
+		lw $a0, number_display_right
+		done_set_address:
+			nop
+		
+		# check if number display has to change location
+		sub $t7, $s1, $s0
+		li $t8, 256
+		div $t7, $t8
+		mfhi $t0 # store the column number
+		beq $t0, 192, move_number_left # 48
+		beq $t0, 64, move_number_right # 16
+		b done_edit_enable
+		move_number_left:
+			blt $s3, 1, done_edit_enable
+			# clear right display
+			lw $a0, number_display_right
+			jal remove_number
+			# set new display address
+			lw $a0, number_display_left
+
+			# activate edit_enable
+			la $t0, edit_enable
+			lw $t1, 0($t0)
+			addi $t1, $t1, 1
+			sw $t1, 0($t0)
+
+			b done_edit_enable
+		move_number_right:
+			bgt $s3, -1, done_edit_enable
+			# clear left display
+			lw $a0, number_display_left
+			jal remove_number
+			# set new display address
+			lw $a0, number_display_right
+
+			# activate edit_enable
+			la $t0, edit_enable
+			lw $t1, 0($t0)
+			addi $t1, $t1, 1
+			sw $t1, 0($t0)
+
+			b done_edit_enable
+		done_edit_enable:
+			nop
+		
+		# update score display
+		lw $t0, edit_enable
+		beqz $t0, done_update_score
+		update_score:
+			lw $a1, current_score
+			jal display_score_number
+		done_update_score:
+			# reset edit enable in game loop
+			la $t0, edit_enable
+			sw $zero, 0($t0)
+
 
 	# 4. Sleep
 	sleep (40)
     # 5. Go back to 1
-    b game_loop
+    j game_loop
+
+
+# the end of game: either out of boundary or hit all bricks
+end_of_game:
+	# reset the directions
+	li $s3, 0
+	li $s4, 0
+	
+	# display highest score
+	la $t0, highest_score
+	lw $t1, 0($t0)
+	lw $t2, current_score
+	update_highest_score:
+		blt $t2, $t1, done_update_highest_score
+		# if current_score >= highest_score, set new highest_score
+		move $t1, $t2
+	done_update_highest_score:
+		# save the highest score
+		sw $t1, 0($t0)
+		# draw highest score on the center
+		lw $a0, number_display_center
+		move $a1, $t1
+		jal display_score_number
+		# clear left and right score display
+		lw $a0, number_display_left
+		jal remove_number
+		lw $a0, number_display_right
+		jal remove_number
+	j game_loop
 
 finish_program:
+	jal clear_screen
 	li $v0, 10
 	syscall
 
@@ -462,8 +619,9 @@ draw_line:
 	done_draw_line: 
 		jr $ra
 
-# get_visibility(brick_address)
-# 	reduce the visibility of the brick from the memory
+# reduce_visibility(brick_address) -> success
+# 	reduce the visibility of the brick from the memory.
+# 	return 1 if successfully remove one brick
 #
 # 	Precondition: the value stored in brick_address is non-zero
 reduce_visibility:
@@ -490,12 +648,106 @@ reduce_visibility:
 	srl $t3, $t3, 1
 	sw $t3, 0($t5)
 
+	# set results
+	li $v0, 0
+	bne $t3, $zero, reduce_epilogue
+	addi $v0, $v0, 1
 	# Epilogue
-	jr $ra
+	reduce_epilogue:
+		jr $ra
 
-# display_number(start_address, num)
+# display_single_number(start_address, num)
 # 	display 0-9 with start_address as top left
 # 	total 5 * 3 pixels
+# 	helper function to display_score_number(start_address, num)
 #
 # 	Precondition: num is one of 0-9
-display_number:
+display_single_number: # TODO: now is just a color block to test for other instructions
+	li $t1, 0
+	li $t2, 5
+	for_display_number:
+		slt $t9, $t1, $t2
+		beqz $t9, done_display_number
+		li $t3, 0xffffff
+		sw $t3, 0($a0)
+		sw $t3, 4($a0)
+		sw $t3, 8($a0)
+		addi $t1, $t1, 1
+		addi $a0, $a0, 256
+		b for_display_number
+	done_display_number:
+		jr $ra
+
+# display_score_number(start_address, num)
+#	display 0-90 with start address as top left
+# 	total (2 * 3 + 1) * 5 = 35 pixels
+#
+#	Precondition: 0 <= num <= 90
+display_score_number:
+	li $t8, 10
+	div $a1, $t8
+
+	# save $ra
+	addi $sp, $sp, -4
+	sw $ra, 0($sp)
+	# save start address
+	addi $sp, $sp, -4
+	sw $a0, 0($sp)
+	# save remainder
+	addi $sp, $sp, -4
+	mfhi $t0
+	sw $t0, 0($sp)
+	mflo $a1
+
+	# draw tens digit
+	jal display_single_number
+	# after that, draw the ones digit
+	lw $a1, 0($sp)
+	addi $sp, $sp, 4
+	lw $a0, 0($sp)
+	addi $sp, $sp, 4
+	addi $a0, $a0, 16
+	jal display_single_number
+	# after the drawing, return back
+	lw $ra, 0($sp)
+	addi $sp, $sp, 4
+	jr $ra
+
+# remove_number(start_address)
+#	remove the number display on this address
+# 	for a total of 35 pixels
+remove_number:
+	li $t1, 0
+	li $t2, 7
+	for_remove_number:
+		slt $t9, $t1, $t2
+		beqz $t9, done_remove_number
+		# clear one column
+		sw $zero, 0($a0)
+		sw $zero, 256($a0)
+		sw $zero, 512($a0)
+		sw $zero, 768($a0)
+		sw $zero, 1024($a0)
+		# update iteration number
+		addi $t1, $t1, 1
+		# move to the next column
+		addi $a0, $a0, 4
+		b for_remove_number
+	done_remove_number:
+		jr $ra
+
+# clear_screen()
+# 	clear the entire screen
+clear_screen:
+	li $t1, 0 # start i
+	li $t2, 2048 # 64 rows * 32 columns
+	move $t4, $s0
+	for_clear_background:
+		slt $t9, $t1, $t2
+		beqz $t9, done_clear_background
+		sw $zero, 0($t4)
+		addi $t4, $t4, 4
+		addi $t1, $t1, 1
+		b for_clear_background
+	done_clear_background:
+		jr $ra
