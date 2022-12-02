@@ -40,6 +40,10 @@ BRICKS_COLOR:
 
 SPEED_RATIO: .word 4
 
+NUMBER_DISPLAY_LEFT: .word 0x10008e10
+NUMBER_DISPLAY_RIGHT: .word 0x10008ed0
+NUMBER_DISPLAY_CENTER: .word 0x10008e74
+
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -47,14 +51,12 @@ ball: .word 0x10009c80
 paddle: .word 0x10009d80
 bricks_visibility: .word 0:90 # 6 rows * 15 bricks each row; 1 = brick visible, 0 otherwise
 
-number_display_left: .word 0x10008e10
-number_display_right: .word 0x10008ed0
-number_display_center: .word 0x10008e74
-
 edit_enable: .word 0 # edit enable for number display
 
 highest_score: .word 0
 current_score: .word 0
+
+pause_enable: .word 0 # 0 if not pause, 1 if pause
 
 ##############################################################################
 # Code
@@ -80,6 +82,10 @@ draw_background:
 		li $s4, 0 # vertical direction, one of [-256, 0, 256]
 		li $s5, 0 # start enable
 		li $s6, 0 # speed ratio counter
+
+		# set pause_enable to 0
+		la $t0, pause_enable
+		sw $zero, 0($t0)
 
 	set_brick_visibility:
 		li $t1, 0 # i = 0
@@ -157,7 +163,7 @@ draw_background:
 		nop
 	
 	# display the highest score at the center
-	lw $a0, number_display_center
+	lw $a0, NUMBER_DISPLAY_CENTER
 	lw $a1, highest_score
 	jal display_score_number
 
@@ -176,9 +182,10 @@ game_loop:
     	lw $a0, 4($t0)                  # Load second word from keyboard
 		beq $a0, 0x20, respond_to_blank # start the game
     	beq $a0, 0x71, respond_to_q     # Check if the key q was pressed (quit)
-    	beq $a0, 0x72, respond_to_r		 # Check if the key r was pressed (restart)
+    	beq $a0, 0x72, respond_to_r		# Check if the key r was pressed (restart)
 		beq $a0, 0x61, respond_to_a		# move paddle to the left
 		beq $a0, 0x64, respond_to_d		# move paddle to the right
+		beq $a0, 0x70, respond_to_p		# pause the game
 
     	b done_respond
 		
@@ -188,15 +195,18 @@ game_loop:
 		respond_to_blank:
 			# if game already started, ignore blank key press
 			bne $s5, $zero, done_respond
+			lw $t0, pause_enable
+			bne $t0, $zero, done_respond
+
 			# initialize direction
 			li $s4, -256
 			# activate start enable
 			li $s5, 1
 			# clear highest score in the middle
-			lw $a0, number_display_center
+			lw $a0, NUMBER_DISPLAY_CENTER
 			jal remove_number
 			# display current score (0) on the right
-			lw $a0, number_display_right
+			lw $a0, NUMBER_DISPLAY_RIGHT
 			move $a1, $zero
 			jal display_score_number
 			# start the game
@@ -208,6 +218,9 @@ game_loop:
 			j main
 		respond_to_a:
 			beqz $s5, done_respond # if haven't started, cannot move
+			lw $t0, pause_enable
+			bne $t0, $zero, done_respond
+
 			li $t0, 0x10009d0c # left most core can reach
 			slt $t9, $t0, $s2
 			beqz $t9,done_draw_paddle # omit move at the edge
@@ -216,18 +229,49 @@ game_loop:
 			b done_respond
 		respond_to_d:
 			beqz $s5, done_respond # if haven't started, cannot move
+			lw $t0, pause_enable
+			bne $t0, $zero, done_respond
+
 			li $t0, 0x10009df0 # right most core can reach
 			slt $t9, $s2, $t0
 			beqz $t9,done_respond # omit move at the edge
 			sw $zero, -8($s2)
 			addi $s2, $s2, 4
 			b done_respond
+		respond_to_p:
+			beqz $s5, done_respond
+			la $t1, pause_enable
+			lw $t0, 0($t1)
+			bne $t0, $zero, continue # if not pause yet, pause
+			# change pause_enable
+			li $t3, 1
+			sw $t3, 0($t1)
+			# save current direction
+			addi $sp, $sp, -4
+			sw $s3, 0($sp)
+			addi $sp, $sp, -4
+			sw $s4, 0($sp)
+			b done_respond
+
+			continue:
+				# change pause_enable
+				sw $zero, 0($t1)
+				# load direction back
+				lw $s4, 0($sp)
+				addi $sp, $sp, 4
+				lw $s3, 0($sp)
+				addi $sp, $sp, 4
+				b done_respond
+
 	done_respond:
 		nop
 
     # 2a. Check for collisions
 	# only check if ball is about to move
 	beqz $s5, done_collision
+	lw $t0, pause_enable
+	bne $t0, $zero, sleep_in_game
+	
 	lw $t4, SPEED_RATIO
 	addi $t4, $t4, -1
 	slt $t9, $s6, $t4
@@ -476,10 +520,10 @@ game_loop:
 
 
 		# get current display address
-		lw $a0, number_display_left
+		lw $a0, NUMBER_DISPLAY_LEFT
 		lw $t3, 8($a0) # upper-right corner of first digit: must nonzero if already display here
 		bne $t3, $zero, done_set_address
-		lw $a0, number_display_right
+		lw $a0, NUMBER_DISPLAY_RIGHT
 		done_set_address:
 			nop
 		
@@ -494,10 +538,10 @@ game_loop:
 		move_number_left:
 			blt $s3, 1, done_edit_enable
 			# clear right display
-			lw $a0, number_display_right
+			lw $a0, NUMBER_DISPLAY_RIGHT
 			jal remove_number
 			# set new display address
-			lw $a0, number_display_left
+			lw $a0, NUMBER_DISPLAY_LEFT
 
 			# activate edit_enable
 			la $t0, edit_enable
@@ -509,10 +553,10 @@ game_loop:
 		move_number_right:
 			bgt $s3, -1, done_edit_enable
 			# clear left display
-			lw $a0, number_display_left
+			lw $a0, NUMBER_DISPLAY_LEFT
 			jal remove_number
 			# set new display address
-			lw $a0, number_display_right
+			lw $a0, NUMBER_DISPLAY_RIGHT
 
 			# activate edit_enable
 			la $t0, edit_enable
@@ -537,9 +581,10 @@ game_loop:
 
 
 	# 4. Sleep
-	sleep (40)
-    # 5. Go back to 1
-    j game_loop
+	sleep_in_game:
+		sleep (40)
+		# 5. Go back to 1
+		j game_loop
 
 
 # the end of game: either out of boundary or hit all bricks
@@ -560,13 +605,13 @@ end_of_game:
 		# save the highest score
 		sw $t1, 0($t0)
 		# draw highest score on the center
-		lw $a0, number_display_center
+		lw $a0, NUMBER_DISPLAY_CENTER
 		move $a1, $t1
 		jal display_score_number
 		# clear left and right score display
-		lw $a0, number_display_left
+		lw $a0, NUMBER_DISPLAY_LEFT
 		jal remove_number
-		lw $a0, number_display_right
+		lw $a0, NUMBER_DISPLAY_RIGHT
 		jal remove_number
 	j game_loop
 
