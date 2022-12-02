@@ -86,6 +86,9 @@ draw_background:
 		# set pause_enable to 0
 		la $t0, pause_enable
 		sw $zero, 0($t0)
+		# set current_score to 0
+		la $t0, current_score
+		sw $zero, 0($t0)
 
 	set_brick_visibility:
 		li $t1, 0 # i = 0
@@ -265,6 +268,15 @@ game_loop:
 
 	done_respond:
 		nop
+	
+
+
+	# check if all bricks has been broken
+	lw $t0, current_score
+	li $t1, 90
+	slt $t9, $t0, $t1
+	# if $t0 >= 90, jump to the end of the game
+	beqz $t9, end_of_game
 
     # 2a. Check for collisions
 	# only check if ball is about to move
@@ -593,7 +605,7 @@ end_of_game:
 	li $s3, 0
 	li $s4, 0
 	
-	# display highest score
+	# update and display highest score
 	la $t0, highest_score
 	lw $t1, 0($t0)
 	lw $t2, current_score
