@@ -340,15 +340,18 @@ game_loop:
 				move $a0, $t6
 				jal reduce_visibility
 				# change edit enable
-				la $t0, edit_enable
-				lw $t9, 0($t0)
-				addi $t9, $t9, 1 # enable edit
-				sw $t9, 0($t0)
+				# la $t0, edit_enable
+				# lw $t9, 0($t0)
+				# addi $t9, $t9, 1 # enable edit
+				# sw $t9, 0($t0)
+				jal activate_enable_edit
 				# change current score
-				la $t0, current_score
-				lw $t1, 0($t0)
-				add $t1, $t1, $v0
-				sw $t1, 0($t0)
+				# la $t0, current_score
+				# lw $t1, 0($t0)
+				# add $t1, $t1, $v0
+				# sw $t1, 0($t0)
+				move $a0, $v0
+				jal curr_score_increament
 				# change vertical direction
 				sub $s4, $zero, $s4
 			# check for side brick
@@ -362,15 +365,18 @@ game_loop:
 				move $a0, $t6
 				jal reduce_visibility
 				# change edit enable
-				la $t0, edit_enable
-				lw $t9, 0($t0)
-				addi $t9, $t9, 1 # enable edit
-				sw $t9, 0($t0)
+				# la $t0, edit_enable
+				# lw $t9, 0($t0)
+				# addi $t9, $t9, 1 # enable edit
+				# sw $t9, 0($t0)
+				jal activate_enable_edit
 				# change current score
-				la $t0, current_score
-				lw $t1, 0($t0)
-				add $t1, $t1, $v0
-				sw $t1, 0($t0)
+				# la $t0, current_score
+				# lw $t1, 0($t0)
+				# add $t1, $t1, $v0
+				# sw $t1, 0($t0)
+				move $a0, $v0
+				jal curr_score_increament
 				# change horizontal direction
 				sub $s3, $zero, $s3
 			
@@ -386,15 +392,18 @@ game_loop:
 				move $a0, $t6
 				jal reduce_visibility
 				# change edit enable
-				la $t0, edit_enable
-				lw $t9, 0($t0)
-				addi $t9, $t9, 1 # enable edit
-				sw $t9, 0($t0)
+				# la $t0, edit_enable
+				# lw $t9, 0($t0)
+				# addi $t9, $t9, 1 # enable edit
+				# sw $t9, 0($t0)
+				jal activate_enable_edit
 				# change current score
-				la $t0, current_score
-				lw $t1, 0($t0)
-				add $t1, $t1, $v0
-				sw $t1, 0($t0)
+				# la $t0, current_score
+				# lw $t1, 0($t0)
+				# add $t1, $t1, $v0
+				# sw $t1, 0($t0)
+				move $a0, $v0
+				jal curr_score_increament
 				# change both direction
 				sub $s3, $zero, $s3
 				sub $s4, $zero, $s4
@@ -556,10 +565,11 @@ game_loop:
 			lw $a0, NUMBER_DISPLAY_LEFT
 
 			# activate edit_enable
-			la $t0, edit_enable
-			lw $t1, 0($t0)
-			addi $t1, $t1, 1
-			sw $t1, 0($t0)
+			# la $t0, edit_enable
+			# lw $t1, 0($t0)
+			# addi $t1, $t1, 1
+			# sw $t1, 0($t0)
+			jal activate_enable_edit
 
 			b done_edit_enable
 		move_number_right:
@@ -571,10 +581,11 @@ game_loop:
 			lw $a0, NUMBER_DISPLAY_RIGHT
 
 			# activate edit_enable
-			la $t0, edit_enable
-			lw $t1, 0($t0)
-			addi $t1, $t1, 1
-			sw $t1, 0($t0)
+			# la $t0, edit_enable
+			# lw $t1, 0($t0)
+			# addi $t1, $t1, 1
+			# sw $t1, 0($t0)
+			jal activate_enable_edit
 
 			b done_edit_enable
 		done_edit_enable:
@@ -597,7 +608,7 @@ game_loop:
 
 	# 4. Sleep
 	sleep_in_game:
-		sleep (40)
+		sleep (60)
 		# 5. Go back to 1
 		j game_loop
 
@@ -716,23 +727,37 @@ reduce_visibility:
 	reduce_epilogue:
 		jr $ra
 
+# activate_enable_edit()
+# 	change edit_enable to 1
+activate_enable_edit:
+	la $t0, edit_enable
+	lw $t9, 0($t0)
+	addi $t9, $t9, 1 # enable edit
+	sw $t9, 0($t0)
+	jr $ra
+
+# curr_score_increament(increament_value)
+#	increase current_score by increament_value
+curr_score_increament:
+	la $t0, current_score
+	lw $t1, 0($t0)
+	add $t1, $t1, $a0
+	sw $t1, 0($t0)
+	jr $ra
+
 # display_single_number(start_address, num)
 # 	display 0-9 with start_address as top left
 # 	total 5 * 3 pixels
 # 	helper function to display_score_number(start_address, num)
 #
 # 	Precondition: num is one of 0-9
-display_single_number: # TODO: now is just a color block to test for other instructions
-	li $t1, 0 # ith column gonna draw
+display_single_number:
+	li $t1, 0 # ith row gonna draw
 	li $t2, 5
 	for_display_number:
 		slt $t9, $t1, $t2
 		beqz $t9, done_display_number
 		li $t3, 0xffffff
-		# sw $t3, 0($a0)
-		# sw $t3, 4($a0)
-		# sw $t3, 8($a0)
-		
 		
 		# check which row to display
 		li $t0, 0
@@ -745,7 +770,6 @@ display_single_number: # TODO: now is just a color block to test for other instr
 		beq $t1, $t0, fourth_row
 		li $t0, 4
 		beq $t1, $t0, fifth_row
-		
 		
 		first_row:
 			# if num = 0
@@ -766,8 +790,6 @@ display_single_number: # TODO: now is just a color block to test for other instr
 			# if num > 4
 			j display_full
 			
-			
-		
 		second_row:
 			# if num = 0
 			li $t0, 0
@@ -787,8 +809,6 @@ display_single_number: # TODO: now is just a color block to test for other instr
 			# if num = 8,9
 			j display_13
 			
-		
-		
 		third_row:
 			# if num = 0
 			li $t0, 0
@@ -802,7 +822,6 @@ display_single_number: # TODO: now is just a color block to test for other instr
 			# if num = 2,3,4,5,6,8,9
 			j display_full
 
-		
 		fourth_row:
 			# if num = 0
 			li $t0, 0
@@ -819,8 +838,6 @@ display_single_number: # TODO: now is just a color block to test for other instr
 			# if num = 1,3,4,5,7,9
 			j display_3
 
-		
-		
 		fifth_row:
 			# if num = 1
 			li $t0, 1
@@ -834,8 +851,7 @@ display_single_number: # TODO: now is just a color block to test for other instr
 			# if num = 0,2,3,5,6,8,9
 			j display_full
 		
-		
-		
+		# some display pattern
 		display_full:
 			sw $t3, 0($a0)
 			sw $t3, 4($a0)
