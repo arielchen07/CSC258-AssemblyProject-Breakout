@@ -340,16 +340,8 @@ game_loop:
 				move $a0, $t6
 				jal reduce_visibility
 				# change edit enable
-				# la $t0, edit_enable
-				# lw $t9, 0($t0)
-				# addi $t9, $t9, 1 # enable edit
-				# sw $t9, 0($t0)
 				jal activate_enable_edit
 				# change current score
-				# la $t0, current_score
-				# lw $t1, 0($t0)
-				# add $t1, $t1, $v0
-				# sw $t1, 0($t0)
 				move $a0, $v0
 				jal curr_score_increament
 				# change vertical direction
@@ -365,16 +357,8 @@ game_loop:
 				move $a0, $t6
 				jal reduce_visibility
 				# change edit enable
-				# la $t0, edit_enable
-				# lw $t9, 0($t0)
-				# addi $t9, $t9, 1 # enable edit
-				# sw $t9, 0($t0)
 				jal activate_enable_edit
 				# change current score
-				# la $t0, current_score
-				# lw $t1, 0($t0)
-				# add $t1, $t1, $v0
-				# sw $t1, 0($t0)
 				move $a0, $v0
 				jal curr_score_increament
 				# change horizontal direction
@@ -392,16 +376,8 @@ game_loop:
 				move $a0, $t6
 				jal reduce_visibility
 				# change edit enable
-				# la $t0, edit_enable
-				# lw $t9, 0($t0)
-				# addi $t9, $t9, 1 # enable edit
-				# sw $t9, 0($t0)
 				jal activate_enable_edit
 				# change current score
-				# la $t0, current_score
-				# lw $t1, 0($t0)
-				# add $t1, $t1, $v0
-				# sw $t1, 0($t0)
 				move $a0, $v0
 				jal curr_score_increament
 				# change both direction
@@ -563,12 +539,7 @@ game_loop:
 			jal remove_number
 			# set new display address
 			lw $a0, NUMBER_DISPLAY_LEFT
-
 			# activate edit_enable
-			# la $t0, edit_enable
-			# lw $t1, 0($t0)
-			# addi $t1, $t1, 1
-			# sw $t1, 0($t0)
 			jal activate_enable_edit
 
 			b done_edit_enable
@@ -579,12 +550,7 @@ game_loop:
 			jal remove_number
 			# set new display address
 			lw $a0, NUMBER_DISPLAY_RIGHT
-
 			# activate edit_enable
-			# la $t0, edit_enable
-			# lw $t1, 0($t0)
-			# addi $t1, $t1, 1
-			# sw $t1, 0($t0)
 			jal activate_enable_edit
 
 			b done_edit_enable
@@ -738,6 +704,8 @@ activate_enable_edit:
 
 # curr_score_increament(increament_value)
 #	increase current_score by increament_value
+#
+# Precondition: increament_value can only be 0 or 1
 curr_score_increament:
 	la $t0, current_score
 	lw $t1, 0($t0)
