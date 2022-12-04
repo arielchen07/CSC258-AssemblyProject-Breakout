@@ -584,6 +584,7 @@ game_loop:
 		lw $t0, edit_enable
 		beqz $t0, done_update_score
 		update_score:
+			jal remove_number
 			lw $a1, current_score
 			jal display_score_number
 		done_update_score:
@@ -720,15 +721,136 @@ reduce_visibility:
 #
 # 	Precondition: num is one of 0-9
 display_single_number: # TODO: now is just a color block to test for other instructions
-	li $t1, 0
+	li $t1, 0 # ith column gonna draw
 	li $t2, 5
 	for_display_number:
 		slt $t9, $t1, $t2
 		beqz $t9, done_display_number
 		li $t3, 0xffffff
-		sw $t3, 0($a0)
-		sw $t3, 4($a0)
-		sw $t3, 8($a0)
+		# sw $t3, 0($a0)
+		# sw $t3, 4($a0)
+		# sw $t3, 8($a0)
+		
+		
+		# check which row to display
+		li $t0, 0
+		beq $t1, $t0, first_row
+		li $t0, 1
+		beq $t1, $t0, second_row
+		li $t0, 2
+		beq $t1, $t0, third_row
+		li $t0, 3
+		beq $t1, $t0, fourth_row
+		li $t0, 4
+		beq $t1, $t0, fifth_row
+		
+		
+		first_row:
+			# if num = 0
+			li $t0, 0
+			beq $a1, $t0, display_full
+			# if num = 1
+			li $t0, 1
+			beq $a1, $t0, display_3
+			# if num = 2
+			li $t0, 2
+			beq $a1, $t0, display_full
+			# if num = 3
+			li $t0, 3
+			beq $a1, $t0, display_full
+			# if num = 4
+			li $t0, 4
+			beq $a1, $t0, display_13
+			# if num > 4
+			j display_full
+			
+			
+		
+		second_row:
+			# if num = 0
+			li $t0, 0
+			beq $a1, $t0, display_13
+			# if num = 4
+			li $t0, 4
+			beq $a1, $t0, display_13
+			# if num = 1,2,3
+			slt $t9, $a1, $t0
+			bne $t9, $zero, display_3
+			# if num = 7
+			li $t0, 7
+			beq $a1, $t0, display_3
+			# if num = 5,6
+			slt $t9, $a1, $t0
+			bne $t9, $zero, display_1
+			# if num = 8,9
+			j display_13
+			
+		
+		
+		third_row:
+			# if num = 0
+			li $t0, 0
+			beq $a1, $t0, display_13
+			# if num = 1
+			li $t0, 1
+			beq $a1, $t0, display_3
+			# if num = 7
+			li $t0, 7
+			beq $a1, $t0, display_3
+			# if num = 2,3,4,5,6,8,9
+			j display_full
+
+		
+		fourth_row:
+			# if num = 0
+			li $t0, 0
+			beq $a1, $t0, display_13
+			# if num = 2
+			li $t0, 2
+			beq $a1, $t0, display_1
+			# if num = 6
+			li $t0, 6
+			beq $a1, $t0, display_13
+			# if num = 8
+			li $t0, 8
+			beq $a1, $t0, display_13
+			# if num = 1,3,4,5,7,9
+			j display_3
+
+		
+		
+		fifth_row:
+			# if num = 1
+			li $t0, 1
+			beq $a1, $t0, display_3  
+			# if num = 4
+			li $t0, 4
+			beq $a1, $t0, display_3
+			# if num = 7
+			li $t0, 7
+			beq $a1, $t0, display_3
+			# if num = 0,2,3,5,6,8,9
+			j display_full
+		
+		
+		
+		display_full:
+			sw $t3, 0($a0)
+			sw $t3, 4($a0)
+			sw $t3, 8($a0)
+			j display_next_row
+		display_13:
+			sw $t3, 0($a0)
+			sw $t3, 8($a0)
+			j display_next_row
+		display_1:
+			sw $t3, 0($a0)
+			j display_next_row
+		display_3:
+			sw $t3, 8($a0)
+			j display_next_row
+		
+	display_next_row:
 		addi $t1, $t1, 1
 		addi $a0, $a0, 256
 		b for_display_number
