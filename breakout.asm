@@ -584,7 +584,9 @@ game_loop:
 		lw $t0, edit_enable
 		beqz $t0, done_update_score
 		update_score:
+			move $t0, $a0 # temporary store the display address
 			jal remove_number
+			move $a0, $t0
 			lw $a1, current_score
 			jal display_score_number
 		done_update_score:
