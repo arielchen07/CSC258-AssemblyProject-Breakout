@@ -343,7 +343,7 @@ game_loop:
 				jal activate_enable_edit
 				# change current score
 				move $a0, $v0
-				jal curr_score_increament
+				jal curr_score_increment
 				# change vertical direction
 				sub $s4, $zero, $s4
 			# check for side brick
@@ -360,7 +360,7 @@ game_loop:
 				jal activate_enable_edit
 				# change current score
 				move $a0, $v0
-				jal curr_score_increament
+				jal curr_score_increment
 				# change horizontal direction
 				sub $s3, $zero, $s3
 			
@@ -379,7 +379,7 @@ game_loop:
 				jal activate_enable_edit
 				# change current score
 				move $a0, $v0
-				jal curr_score_increament
+				jal curr_score_increment
 				# change both direction
 				sub $s3, $zero, $s3
 				sub $s4, $zero, $s4
@@ -702,11 +702,11 @@ activate_enable_edit:
 	sw $t9, 0($t0)
 	jr $ra
 
-# curr_score_increament(increament_value)
-#	increase current_score by increament_value
+# curr_score_increment(increment_value)
+#	increase current_score by increment_value
 #
-# Precondition: increament_value can only be 0 or 1
-curr_score_increament:
+# Precondition: increment_value can only be 0 or 1
+curr_score_increment:
 	la $t0, current_score
 	lw $t1, 0($t0)
 	add $t1, $t1, $a0
